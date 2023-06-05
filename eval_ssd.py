@@ -155,7 +155,10 @@ def evaluate():
             # H2D in the predictor.predict
             with context_func(args.profile if i == profile_len else False, args.device, args.fuser_mode) as prof:
                 boxes, labels, probs = predictor.predict(image)
-                torch.cuda.synchronize()
+                if args.device == "xpu":
+                    torch.xpu.synchronize()
+                elif args.device == "cuda":
+                    torch.cuda.synchronize()
             end_time = time.time()
 
             print("Iteration: {}, inference time: {} sec.".format(i, end_time - start_time), flush=True)
