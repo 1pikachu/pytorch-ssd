@@ -141,7 +141,7 @@ def compute_average_precision_per_class(num_true_cases, gt_boxes, difficult_case
 def evaluate():
     results = []
     all_time = 0
-    profile_len = args.num_iter // 2
+    profile_len = args.num_iters // 2
     with torch.no_grad():
         for i in range(len(dataset)):
             if args.num_iters != 0 and i >= args.num_iters:
@@ -232,7 +232,7 @@ if __name__ == '__main__':
         args.fuser_mode = "none"
     print("---- fuser mode:", args.fuser_mode)
 
-    if args.channels_last:
+    if args.channels_last or args.device == "cuda":
         net = net.to(memory_format=torch.channels_last)
         print("---- Use channels last format.")
 
