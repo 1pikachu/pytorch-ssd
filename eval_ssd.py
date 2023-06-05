@@ -277,6 +277,11 @@ if __name__ == '__main__':
     else:
         amp_enable = False
         amp_dtype = torch.float32
+
+    if args.device == "xpu":
+        net = torch.xpu.optimize(net, dtype=amp_dtype)
+        print("---- enable xpu optimize")
+
     with torch.autocast(device_type=args.device, enabled=amp_enable, dtype=amp_dtype):
         all_time, results = evaluate()
     print('Throughput is: %f imgs/s' % ((args.num_iters - args.num_warmup) / all_time))
