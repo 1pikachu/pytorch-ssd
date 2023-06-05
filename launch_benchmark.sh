@@ -63,7 +63,7 @@ function generate_core {
         printf " ${OOB_EXEC_HEADER} \
         python eval_ssd.py --device ${device} \
 	    --net ${model_name} --dataset ${DATASET_DIR} \
-	    --trained_model ${model_path} \
+	    --trained_model ${MODEL_PATH} \
 	    --label_file ${CKPT_DIR}/voc-model-labels.txt \
 	    --model_name ${model_name} \
 	    --num_iters ${num_iter} --num_warmup ${num_warmup} \
