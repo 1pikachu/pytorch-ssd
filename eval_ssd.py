@@ -14,6 +14,12 @@ import logging
 import sys
 from vision.ssd.mobilenet_v2_ssd_lite import create_mobilenetv2_ssd_lite, create_mobilenetv2_ssd_lite_predictor
 from vision.ssd.mobilenetv3_ssd_lite import create_mobilenetv3_large_ssd_lite, create_mobilenetv3_small_ssd_lite
+try:
+    from context_func import context_func
+except ModuleNotFoundError as e:
+    print("!!!pls check how to add context_func.py from launch_benchmark.sh")
+    sys.exit(0)
+import time
 
 
 parser = argparse.ArgumentParser(description="SSD Evaluation on VOC Dataset.")
@@ -32,8 +38,21 @@ parser.add_argument("--iou_threshold", type=float, default=0.5, help="The thresh
 parser.add_argument("--eval_dir", default="eval_results", type=str, help="The directory to store evaluation results.")
 parser.add_argument('--mb2_width_mult', default=1.0, type=float,
                     help='Width Multiplifier for MobilenetV2')
+# oob
+parser.add_argument('--model_name', type=str, help="The model names.")
+parser.add_argument('--device', default='cuda', choices=['xpu', 'cuda', 'cpu'], type=str)
+parser.add_argument('--precision', type=str, default="float32",
+                    help='precision, float32, float16')
+parser.add_argument('--jit', action='store_true', default=False,
+                    help='enable ipex jit fusionpath')
+parser.add_argument('--nv_fuser', action='store_true', default=False)
+parser.add_argument('--channels_last', type=int, default=1, help='use channels last format')
+parser.add_argument('--num_warmup', type=int, default=10, help='warmup')
+parser.add_argument('--num_iters', type=int, default=0, help='iterations')
+parser.add_argument('--profile', action='store_true', help='Trigger profile on current topology.')
+
 args = parser.parse_args()
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() and args.use_cuda else "cpu")
+DEVICE = torch.device(args.device)
 
 
 def group_annotation_by_class(dataset):
@@ -119,12 +138,49 @@ def compute_average_precision_per_class(num_true_cases, gt_boxes, difficult_case
     else:
         return measurements.compute_average_precision(precision, recall)
 
+def evaluate():
+    results = []
+    all_time = 0
+    profile_len = args.num_iter // 2
+    with torch.no_grad():
+        for i in range(len(dataset)):
+            if args.num_iters != 0 and i >= args.num_iters:
+                break
+            print("process image", i)
+            timer.start("Load Image")
+            image = dataset.get_image(i)
+            print("Load Image: {:4f} seconds.".format(timer.end("Load Image")))
+
+            start_time = time.time()
+            # H2D in the predictor.predict
+            with context_func(args.profile if i == profile_len else False, args.device, args.fuser_mode) as prof:
+                boxes, labels, probs = predictor.predict(image)
+                torch.cuda.synchronize()
+            end_time = time.time()
+
+            print("Iteration: {}, inference time: {} sec.".format(i, end_time - start_time), flush=True)
+            if i >= args.num_warmup:
+                all_time += (end_time - start_time)
+            indexes = torch.ones(labels.size(0), 1, dtype=torch.float32) * i
+            results.append(torch.cat([
+                indexes.reshape(-1, 1),
+                labels.reshape(-1, 1).float(),
+                probs.reshape(-1, 1),
+                boxes + 1.0  # matlab's indexes start from 1
+            ], dim=1))
+
+        results = torch.cat(results)
+        return all_time, results
+
 
 if __name__ == '__main__':
     eval_path = pathlib.Path(args.eval_dir)
     eval_path.mkdir(exist_ok=True)
     timer = Timer()
     class_names = [name.strip() for name in open(args.label_file).readlines()]
+
+    if args.device == "xpu":
+        import intel_extension_for_pytorch
 
     if args.dataset_type == "voc":
         dataset = VOCDataset(args.dataset, is_test=True)
@@ -170,23 +226,58 @@ if __name__ == '__main__':
         parser.print_help(sys.stderr)
         sys.exit(1)
 
-    results = []
-    for i in range(len(dataset)):
-        print("process image", i)
-        timer.start("Load Image")
-        image = dataset.get_image(i)
-        print("Load Image: {:4f} seconds.".format(timer.end("Load Image")))
-        timer.start("Predict")
-        boxes, labels, probs = predictor.predict(image)
-        print("Prediction: {:4f} seconds.".format(timer.end("Predict")))
-        indexes = torch.ones(labels.size(0), 1, dtype=torch.float32) * i
-        results.append(torch.cat([
-            indexes.reshape(-1, 1),
-            labels.reshape(-1, 1).float(),
-            probs.reshape(-1, 1),
-            boxes + 1.0  # matlab's indexes start from 1
-        ], dim=1))
-    results = torch.cat(results)
+    if args.nv_fuser:
+        args.fuser_mode = "fuser2"
+    else:
+        args.fuser_mode = "none"
+    print("---- fuser mode:", args.fuser_mode)
+
+    if args.channels_last:
+        net = net.to(memory_format=torch.channels_last)
+        print("---- Use channels last format.")
+
+    #results = []
+    #for i in range(len(dataset)):
+    #    print("process image", i)
+    #    timer.start("Load Image")
+    #    image = dataset.get_image(i)
+    #    print("Load Image: {:4f} seconds.".format(timer.end("Load Image")))
+    #    timer.start("Predict")
+    #    boxes, labels, probs = predictor.predict(image)
+    #    print("Prediction: {:4f} seconds.".format(timer.end("Predict")))
+    #    indexes = torch.ones(labels.size(0), 1, dtype=torch.float32) * i
+    #    results.append(torch.cat([
+    #        indexes.reshape(-1, 1),
+    #        labels.reshape(-1, 1).float(),
+    #        probs.reshape(-1, 1),
+    #        boxes + 1.0  # matlab's indexes start from 1
+    #    ], dim=1))
+    #results = torch.cat(results)
+
+    if args.jit:
+        with torch.inference_mode():
+            try:
+                jit_inputs = dataset.get_image(0)
+                jit_inputs = predictor.transform(jit_inputs).unsqueeze(0).to(args.device)
+                net = torch.jit.trace(net, jit_inputs, check_trace=False)
+                print("---- With JIT trace enabled.")
+            except (RuntimeError, TypeError) as e:
+                print("failed to use PyTorch jit mode due to: ", e)
+                print("---- With JIT trace disabled.")
+    # evaluate
+    if args.precision == 'float16':
+        amp_enable = True
+        amp_dtype = torch.float16
+    elif args.precision == 'bfloat16':
+        amp_enable = True
+        amp_dtype = torch.bfloat16
+    else:
+        amp_enable = False
+        amp_dtype = torch.float32
+    with torch.autocast(device_type=args.device, enabled=amp_enable, dtype=amp_dtype):
+        all_time, results = evaluate()
+    print('Throughput is: %f imgs/s' % ((args.num_iters - args.num_warmup) / all_time))
+
     for class_index, class_name in enumerate(class_names):
         if class_index == 0: continue  # ignore background
         prediction_path = eval_path / f"det_test_{class_name}.txt"
