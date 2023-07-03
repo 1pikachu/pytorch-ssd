@@ -32,7 +32,10 @@ class SSD(nn.Module):
         if device:
             self.device = device
         else:
-            self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+            if getattr(torch, "xpu", None):
+                self.device = torch.device("xpu")
+            else:
+                self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         if is_test:
             self.config = config
             self.priors = config.priors.to(self.device)
