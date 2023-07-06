@@ -284,7 +284,7 @@ if __name__ == '__main__':
 
     with torch.autocast(device_type=args.device, enabled=amp_enable, dtype=amp_dtype):
         all_time, results = evaluate()
-    print('Throughput is: %f imgs/s' % ((args.num_iters - args.num_warmup) / all_time))
+    print('Throughput: %f imgs/s' % ((args.num_iters - args.num_warmup) / all_time))
 
     for class_index, class_name in enumerate(class_names):
         if class_index == 0: continue  # ignore background
