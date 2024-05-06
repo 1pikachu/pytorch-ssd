@@ -242,7 +242,7 @@ if __name__ == '__main__':
         print("---- Use channels last format.")
     if args.compile:
         print("----enable compiler")
-        pipe = torch.compile(net, backend=args.backend, options={"freezing": True})
+        net = torch.compile(net, backend=args.backend, options={"freezing": True})
 
     #results = []
     #for i in range(len(dataset)):
