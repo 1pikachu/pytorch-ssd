@@ -50,6 +50,8 @@ parser.add_argument('--channels_last', type=int, default=1, help='use channels l
 parser.add_argument('--num_warmup', type=int, default=10, help='warmup')
 parser.add_argument('--num_iters', type=int, default=0, help='iterations')
 parser.add_argument('--profile', action='store_true', help='Trigger profile on current topology.')
+parser.add_argument('--compile', action='store_true', default=False, help='compile model')
+parser.add_argument('--backend', default="inductor", type=str, help='backend')
 
 args = parser.parse_args()
 DEVICE = torch.device(args.device)
@@ -238,6 +240,9 @@ if __name__ == '__main__':
     if args.channels_last or args.device == "cuda":
         net = net.to(memory_format=torch.channels_last)
         print("---- Use channels last format.")
+    if args.compile:
+        print("----enable compiler")
+        pipe = torch.compile(net, backend=args.backend, options={"freezing": True})
 
     #results = []
     #for i in range(len(dataset)):
