@@ -62,6 +62,11 @@ function generate_core {
         elif [ "${device}" == "xpu" ];then
             OOB_EXEC_HEADER=" ZE_AFFINITY_MASK=${i} "
         fi
+        if [[ "${addtion_options}" =~ "--compile" ]];then
+            echo "run with compile"
+        else
+            addtion_options+=" --jit "
+        fi
         printf " ${OOB_EXEC_HEADER} \
         python eval_ssd.py --device ${device} \
             --net ${model_name} --dataset ${DATASET_DIR} \
@@ -70,7 +75,7 @@ function generate_core {
             --model_name ${model_name} \
             --num_iters ${num_iter} --num_warmup ${num_warmup} \
             --precision ${precision} \
-            --channels_last ${channels_last} --jit \
+            --channels_last ${channels_last} \
             ${addtion_options} \
         > ${log_file} 2>&1 &  \n" |tee -a ${excute_cmd_file}
         if [ "${numa_nodes_use}" == "0" ];then
