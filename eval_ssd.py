@@ -240,9 +240,6 @@ if __name__ == '__main__':
     if args.channels_last or args.device == "cuda":
         net = net.to(memory_format=torch.channels_last)
         print("---- Use channels last format.")
-    if args.compile:
-        print("----enable compiler")
-        net = torch.compile(net, backend=args.backend, options={"freezing": True})
 
     #results = []
     #for i in range(len(dataset)):
@@ -286,6 +283,9 @@ if __name__ == '__main__':
     if args.device == "xpu":
         net = torch.xpu.optimize(net, dtype=amp_dtype)
         print("---- enable xpu optimize")
+    if args.compile:
+        print("----enable compiler")
+        net = torch.compile(net, backend=args.backend, options={"freezing": True})
 
     with torch.autocast(device_type=args.device, enabled=amp_enable, dtype=amp_dtype):
         all_time, results = evaluate()
