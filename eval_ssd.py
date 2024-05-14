@@ -194,19 +194,19 @@ if __name__ == '__main__':
 
     true_case_stat, all_gb_boxes, all_difficult_cases = group_annotation_by_class(dataset)
     if args.net == 'vgg16-ssd':
-        net = create_vgg_ssd(len(class_names), is_test=True)
+        net = create_vgg_ssd(len(class_names), is_test=True, device=args.device)
     elif args.net == 'mb1-ssd':
-        net = create_mobilenetv1_ssd(len(class_names), is_test=True)
+        net = create_mobilenetv1_ssd(len(class_names), is_test=True, device=args.device)
     elif args.net == 'mb1-ssd-lite':
-        net = create_mobilenetv1_ssd_lite(len(class_names), is_test=True)
+        net = create_mobilenetv1_ssd_lite(len(class_names), is_test=True, device=args.device)
     elif args.net == 'sq-ssd-lite':
-        net = create_squeezenet_ssd_lite(len(class_names), is_test=True)
+        net = create_squeezenet_ssd_lite(len(class_names), is_test=True, device=args.device)
     elif args.net == 'mb2-ssd-lite':
-        net = create_mobilenetv2_ssd_lite(len(class_names), width_mult=args.mb2_width_mult, is_test=True)
+        net = create_mobilenetv2_ssd_lite(len(class_names), width_mult=args.mb2_width_mult, is_test=True, device=args.device)
     elif args.net == 'mb3-large-ssd-lite':
-        net = create_mobilenetv3_large_ssd_lite(len(class_names), is_test=True)
+        net = create_mobilenetv3_large_ssd_lite(len(class_names), is_test=True, device=args.device)
     elif args.net == 'mb3-small-ssd-lite':
-        net = create_mobilenetv3_small_ssd_lite(len(class_names), is_test=True)
+        net = create_mobilenetv3_small_ssd_lite(len(class_names), is_test=True, device=args.device)
     else:
         logging.fatal("The net type is wrong. It should be one of vgg16-ssd, mb1-ssd and mb1-ssd-lite.")
         parser.print_help(sys.stderr)
