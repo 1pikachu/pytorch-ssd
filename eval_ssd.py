@@ -52,6 +52,7 @@ parser.add_argument('--num_iters', type=int, default=0, help='iterations')
 parser.add_argument('--profile', action='store_true', help='Trigger profile on current topology.')
 parser.add_argument('--compile', action='store_true', default=False, help='compile model')
 parser.add_argument('--backend', default="inductor", type=str, help='backend')
+parser.add_argument('--ipex', action='store_true', default=False)
 
 args = parser.parse_args()
 DEVICE = torch.device(args.device)
@@ -184,8 +185,9 @@ if __name__ == '__main__':
     timer = Timer()
     class_names = [name.strip() for name in open(args.label_file).readlines()]
 
-    if args.device == "xpu":
+    if args.device == "xpu" and args.ipex:
         import intel_extension_for_pytorch
+        print("Use IPEX")
 
     if args.dataset_type == "voc":
         dataset = VOCDataset(args.dataset, is_test=True)
@@ -280,7 +282,7 @@ if __name__ == '__main__':
         amp_enable = False
         amp_dtype = torch.float32
 
-    if args.device == "xpu":
+    if args.device == "xpu" and args.ipex:
         net = torch.xpu.optimize(net, dtype=amp_dtype)
         print("---- enable xpu optimize")
     if args.compile:
